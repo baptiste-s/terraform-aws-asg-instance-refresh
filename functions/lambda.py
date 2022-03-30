@@ -4,8 +4,6 @@ import logging.config
 from os import environ
 
 import boto3
-import sentry_sdk
-from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
 
 
 class LambdaError(RuntimeError):
@@ -27,10 +25,6 @@ LOGGING_LEVEL = environ.get('LOGGING_LEVEL', logging.INFO)
 REFRESH_INSTANCE_WARMUP = int(environ['REFRESH_INSTANCE_WARMUP'])
 REFRESH_MIN_HEALTHY_PERCENTAGE = int(environ['REFRESH_MIN_HEALTHY_PERCENTAGE'])
 SSM_PARAMETER_NAME = environ['SSM_PARAMETER_NAME']
-SENTRY_DSN = environ.get('SENTRY_DSN')
-
-if SENTRY_DSN:
-    sentry_sdk.init(SENTRY_DSN, integrations=[AwsLambdaIntegration()])
 
 logging.config.dictConfig({
     'version': 1,
@@ -59,11 +53,15 @@ ssm = boto3.client('ssm')
 
 def get_current_image_id():
     """Returns current AMI from SSM"""
+    param_value = ""
     param = ssm.get_parameter(Name=SSM_PARAMETER_NAME)
-    param_value = json.loads(param['Parameter']['Value'])
-    image_id = param_value['image_id']
+    if param['Parameter']['Value'].startswith('ami-'):
+      image_id = param['Parameter']['Value']
+    else: 
+      param_value = json.loads(param['Parameter']['Value'])
+      image_id = param_value['image_id']
     logger.info('Newest image_id is "%s"', image_id)
-    return param_value['image_id']
+    return image_id
 
 
 def get_launch_template_name_and_auto_scaling_group():
